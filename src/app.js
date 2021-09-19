@@ -5,8 +5,13 @@ const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server);
 
-app.use(express.json())
+//file upload
+const path = require('path');
+app.use('images', express.static(path.join(__dirname, 'images')))
+app.use('/api', require('./routes/upload.route'))
 
+
+app.use(express.json())
 
 const rooms = new Map();
 
@@ -35,6 +40,8 @@ app.post('/rooms', (req, res) => {
                 ['users', new Map()],
                 ['messages', []],
             ]),
+            //settings
+            //game state
         );
     }
     res.send();
@@ -58,6 +65,7 @@ io.on('connection', (socket) => {
     })
 
     socket.on('disconnect', () => {
+        console.log(`user ${socket.id} disconnected` )
         rooms.forEach((value, roomId) => {
             if (value.get('users').delete(socket.id)) {
                 const users = [...value.get('users').values()];
@@ -69,11 +77,8 @@ io.on('connection', (socket) => {
     console.log('user connected', socket.id);
 });
 
-
-
 server.listen(5000, (err) => {
     if(err) {throw new Error(err)}
     console.log('Server started on port 5000');
-
 });
 
