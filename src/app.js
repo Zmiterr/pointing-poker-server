@@ -54,7 +54,8 @@ app.post('/rooms', (req, res) => {
                 ['messages', []],
                 ['settings', {}],
                 ['issues', []],
-                ['gameState', {}]
+                ['gameState', {}],
+                ['votes', {}]
             ]),
 
         );
@@ -84,8 +85,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('GAME:START', ({ roomId }) => {
-        rooms.get(roomId).get('gameState').set('appStatus', 'game');  //check set syntax
-        socket.broadcast.to(roomId).emit('GAME:START', roomId);
+        rooms.get(roomId).get('gameState').set('appStatus', 'game');  //TODO тут надо будет засетать здоровенный объект
+        rooms.get(roomId).get('issues').set() //TODO set current issue
+        socket.broadcast.to(roomId).emit('GAME:START', '');
     })
 
     //*************************************//
@@ -102,11 +104,59 @@ io.on('connection', (socket) => {
     //*************************************//
     //            Game                     //
     //*************************************//
-    
+    socket.on('CARD:SELECTED', ({ roomId, userName, scorePoint }) => {
+        rooms.get(roomId).get('issues').set();  //TODO set {userName, scorePoint} for current issue
+    })
+
+    socket.on('ISSUE:NEXT', ({ roomId }) => {
+        rooms.get(roomId).get('issues').set();  //TODO find 'current' issue and set status 'finished'
+        rooms.get(roomId).get('issues').set();  //TODO find one issue with status 'future'  and set status 'current'
+        const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
+        socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
+        if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
+            socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
+        }
+
+    })
+
+    socket.on('ISSUE:RESTART', ({ roomId }) => {
+        const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
+        rooms.get(roomId).get('issues').set();  //TODO find  issue with status 'future'  and clear votes
+        socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
+        if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
+            socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
+        }
+    })
+
+    socket.on('GAME:STOP', ({ roomId }) => {
+        rooms.get(roomId).get('settings').set(); //TODO set game status 'finished'
+        socket.broadcast.to(roomId).emit('GAME:STOP', '')
+    })
+    //*************************************//
+    //            Votes                    //
+    //*************************************//
+    socket.on('VOTES:START', ({ roomId, userName, kickUserName }) => {
+        rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
+        socket.broadcast.to(roomId).emit('VOTES:START', {userName, kickUserName})
+    })
+    socket.on('VOTES:APPROVE', ({ roomId, userName, kickUserName }) => {
+        const usersCount = [...rooms.get(roomId).get('users')].length+1;
+        rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
+        if(rooms.get(roomId).get('VOTES').get()/usersCount) { //TODO get approve count
+            socket.broadcast.to(roomId).emit('GAME:KICK', kickUserName)
+        }
+    })
+
+    socket.on('VOTES:REJECT', ({ roomId, userName, kickUserName }) => {
+        const usersCount = [...rooms.get(roomId).get('users')].length+1;
+        rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'reject +1'
+        if(rooms.get(roomId).get('VOTES').get()/usersCount) { //TODO get reject count
+            rooms.get(roomId).get('VOTES').set({}) //TODO clear votes
+        }
+    })
     //*************************************//
     //            Disconnect               //
     //*************************************//
-
     socket.on('disconnect', () => {
         console.log(`user ${socket.id} disconnected` )
         rooms.forEach((value, roomId) => {
