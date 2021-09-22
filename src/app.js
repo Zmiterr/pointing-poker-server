@@ -53,7 +53,8 @@ app.post('/rooms', (req, res) => {
                 ['users', new Map()],
                 ['messages', []],
                 ['settings', {}],
-                ['issues', []]
+                ['issues', []],
+                ['gameState', {}]
             ]),
 
         );
@@ -68,7 +69,7 @@ app.post('/start', (req, res) => {
     const { gameState } = req.body;
    //set gameState to rooms
     // rooms.get(roomId).set & etc.
-    res.send({gameState});
+    res.send('ok');
 });
 
 io.on('connection', (socket) => {
@@ -79,6 +80,11 @@ io.on('connection', (socket) => {
         socket.broadcast.to(roomId).emit('ROOM:SET_USERS', users);
     });
 
+    socket.on('GAME:START', ({ roomId }) => {
+        rooms.get(roomId).get('gameState').set('appStatus', 'game');  //check set syntax
+        socket.broadcast.to(roomId).emit('GAME:START', roomId);
+    })
+
     socket.on('ROOM:NEW_MESSAGE', ({ roomId, userName, text }) => {
         const obj = {
             userName,
@@ -87,6 +93,7 @@ io.on('connection', (socket) => {
         rooms.get(roomId).get('messages').push(obj);
         socket.broadcast.to(roomId).emit('ROOM:NEW_MESSAGE', obj);
     })
+
 
     socket.on('ROOM:NEW_MESSAGE', ({ roomId, userName, text }) => {
         const obj = {
