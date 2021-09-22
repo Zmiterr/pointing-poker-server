@@ -142,7 +142,7 @@ io.on('connection', (socket) => {
     socket.on('VOTES:APPROVE', ({ roomId, userName, kickUserName }) => {
         const usersCount = [...rooms.get(roomId).get('users')].length+1;
         rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
-        if(rooms.get(roomId).get('VOTES').get()/usersCount) { //TODO get approve count
+        if(rooms.get(roomId).get('VOTES').get() > usersCount/2) { //TODO get approve count
             socket.broadcast.to(roomId).emit('GAME:KICK', kickUserName)
         }
     })
@@ -150,7 +150,7 @@ io.on('connection', (socket) => {
     socket.on('VOTES:REJECT', ({ roomId, userName, kickUserName }) => {
         const usersCount = [...rooms.get(roomId).get('users')].length+1;
         rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'reject +1'
-        if(rooms.get(roomId).get('VOTES').get()/usersCount) { //TODO get reject count
+        if(rooms.get(roomId).get('VOTES').get() > usersCount/2) { //TODO get reject count
             rooms.get(roomId).get('VOTES').set({}) //TODO clear votes
         }
     })
