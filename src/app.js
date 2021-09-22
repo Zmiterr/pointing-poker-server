@@ -57,6 +57,8 @@ app.post('/rooms', (req, res) => {
             ]),
 
         );
+
+        res.send({roomId: newRoomId, userName});
     }
 
     res.send({roomId: roomId, userName});
