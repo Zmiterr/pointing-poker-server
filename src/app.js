@@ -73,6 +73,9 @@ app.post('/start', (req, res) => {
 });
 
 io.on('connection', (socket) => {
+    //*************************************//
+    //            Lobby                    //
+    //*************************************//
     socket.on('ROOM:JOIN', ({ roomId, userName, jobPosition, isObserver, image }) => {
         socket.join(roomId);
         rooms.get(roomId).get('users').set(socket.id, { userName, jobPosition, isObserver, image });
@@ -85,6 +88,9 @@ io.on('connection', (socket) => {
         socket.broadcast.to(roomId).emit('GAME:START', roomId);
     })
 
+    //*************************************//
+    //            Chat                     //
+    //*************************************//
     socket.on('ROOM:NEW_MESSAGE', ({ roomId, userName, text }) => {
         const obj = {
             userName,
@@ -93,16 +99,13 @@ io.on('connection', (socket) => {
         rooms.get(roomId).get('messages').push(obj);
         socket.broadcast.to(roomId).emit('ROOM:NEW_MESSAGE', obj);
     })
-
-
-    socket.on('ROOM:NEW_MESSAGE', ({ roomId, userName, text }) => {
-        const obj = {
-            userName,
-            text,
-        };
-        rooms.get(roomId).get('messages').push(obj);
-        socket.broadcast.to(roomId).emit('ROOM:NEW_MESSAGE', obj);
-    })
+    //*************************************//
+    //            Game                     //
+    //*************************************//
+    
+    //*************************************//
+    //            Disconnect               //
+    //*************************************//
 
     socket.on('disconnect', () => {
         console.log(`user ${socket.id} disconnected` )
