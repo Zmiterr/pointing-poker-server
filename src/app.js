@@ -4,6 +4,15 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server);
+const redis = require("redis");
+const config = require('./config');
+const uuid4 = require('uuid4');
+//const client = redis.createClient(config.redisConf);
+
+// client.on("error", function(error) {
+//     console.error(error);
+// });
+
 
 //file upload
 const path = require('path');
@@ -26,6 +35,8 @@ app.get('/rooms/:id', (req, res) => {
         ? {
             users: [...rooms.get(roomId).get('users').values()],
             messages: [...rooms.get(roomId).get('messages').values()],
+            settings: rooms.get(roomId).get('settings'),
+            issues: rooms.get(roomId).get('issues'),
         }
         : { users: [], messages: [] };
     res.json(obj);
@@ -33,27 +44,47 @@ app.get('/rooms/:id', (req, res) => {
 
 app.post('/rooms', (req, res) => {
     const { roomId, userName } = req.body;
+
     if (!rooms.has(roomId)) {
+        newRoomId = uuid4();
         rooms.set(
-            roomId,
+            newRoomId,
             new Map([
                 ['users', new Map()],
                 ['messages', []],
+                ['settings', {}],
+                ['issues', []]
             ]),
-            //settings
-            //game state
+
         );
     }
-    res.send();
+
+    res.send({roomId: roomId, userName});
+});
+
+app.post('/start', (req, res) => {
+    const { gameState } = req.body;
+   //set gameState to rooms
+    // rooms.get(roomId).set & etc.
+    res.send({gameState});
 });
 
 io.on('connection', (socket) => {
-    socket.on('ROOM:JOIN', ({ roomId, userName }) => {
+    socket.on('ROOM:JOIN', ({ roomId, userName, jobPosition, isObserver, image }) => {
         socket.join(roomId);
-        rooms.get(roomId).get('users').set(socket.id, userName);
+        rooms.get(roomId).get('users').set(socket.id, { userName, jobPosition, isObserver, image });
         const users = [...rooms.get(roomId).get('users').values()];
         socket.broadcast.to(roomId).emit('ROOM:SET_USERS', users);
     });
+
+    socket.on('ROOM:NEW_MESSAGE', ({ roomId, userName, text }) => {
+        const obj = {
+            userName,
+            text,
+        };
+        rooms.get(roomId).get('messages').push(obj);
+        socket.broadcast.to(roomId).emit('ROOM:NEW_MESSAGE', obj);
+    })
 
     socket.on('ROOM:NEW_MESSAGE', ({ roomId, userName, text }) => {
         const obj = {
