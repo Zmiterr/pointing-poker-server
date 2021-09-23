@@ -108,14 +108,21 @@ io.on('connection', (socket) => {
         rooms.get(roomId).get('issues').set();  //TODO set {userName, scorePoint} for current issue
     })
 
+    function finishIssue(roomId, curIssue) {
+        socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue);
+    }
+
     socket.on('ISSUE:NEXT', ({ roomId }) => {
         rooms.get(roomId).get('issues').set();  //TODO find 'current' issue and set status 'finished'
         rooms.get(roomId).get('issues').set();  //TODO find one issue with status 'future'  and set status 'current'
         const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
         socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
-        if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
-            socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
-        }
+        // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
+        //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
+        // }
+        const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
+        rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
+        setTimeout(finishIssue, roundTime, roomId, curIssue)
 
     })
 
@@ -123,9 +130,12 @@ io.on('connection', (socket) => {
         const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
         rooms.get(roomId).get('issues').set();  //TODO find  issue with status 'future'  and clear votes
         socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
-        if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
-            socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
-        }
+        // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
+        //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
+        // }
+        const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
+        rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
+        setTimeout(finishIssue, roundTime, roomId, curIssue)
     })
 
     socket.on('GAME:STOP', ({ roomId }) => {
