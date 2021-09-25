@@ -30,19 +30,26 @@ const rooms = new Map();
 // })
 
 app.get('/rooms/:id', (req, res) => {
-    const { id: roomId } = req.params;
-    const obj = rooms.has(roomId)
-        ? {
-            users: [...rooms.get(roomId).get('users').values()],
-            messages: [...rooms.get(roomId).get('messages').values()],
-            settings: rooms.get(roomId).get('settings'),
-            issues: rooms.get(roomId).get('issues'),
-        }
-        : { users: [], messages: [] };
-    res.json(obj);
+    try {
+        const {id: roomId} = req.params;
+        const obj = rooms.has(roomId)
+            ? {
+                users: [...rooms.get(roomId).get('users').values()],
+                messages: [...rooms.get(roomId).get('messages').values()],
+                settings: rooms.get(roomId).get('settings'),
+                issues: rooms.get(roomId).get('issues'),
+            }
+            : {users: [], messages: []};
+        res.json(obj);
+    }
+    catch (err) {
+        console.log(err);
+        res.status(500).send('Something broke!');
+    }
 });
 
 app.post('/rooms', (req, res) => {
+    try{
     const { roomId, userName } = req.body;
 
     if (!rooms.has(roomId)) {
@@ -64,13 +71,24 @@ app.post('/rooms', (req, res) => {
     }
 
     res.send({roomId: roomId, userName});
+    }
+    catch (err) {
+        console.log(err);
+        res.status(500).send('Something broke!');
+    }
 });
 
 app.post('/start', (req, res) => {
+    try{
     const { gameState } = req.body;
    //set gameState to rooms
     // rooms.get(roomId).set & etc.
     res.send('ok');
+    }
+    catch (err) {
+        console.log(err);
+        res.status(500).send('Something broke!');
+    }
 });
 
 io.on('connection', (socket) => {
@@ -78,34 +96,51 @@ io.on('connection', (socket) => {
     //            Lobby                    //
     //*************************************//
     socket.on('ROOM:JOIN', ({ roomId, userName, jobPosition, isObserver, image }) => {
-        socket.join(roomId);
-        rooms.get(roomId).get('users').set(socket.id, { userName, jobPosition, isObserver, image });
-        const users = [...rooms.get(roomId).get('users').values()];
-        socket.broadcast.to(roomId).emit('ROOM:SET_USERS', users);
+        try{
+            socket.join(roomId);
+            rooms.get(roomId).get('users').set(socket.id, { userName, jobPosition, isObserver, image });
+            const users = [...rooms.get(roomId).get('users').values()];
+            socket.broadcast.to(roomId).emit('ROOM:SET_USERS', users);
+        }
+        catch (err) {
+            console.log(err);
+        }
     });
 
     socket.on('GAME:START', ({ roomId }) => {
-        rooms.get(roomId).get('gameState').set('appStatus', 'game');  //TODO тут надо будет засетать здоровенный объект
-        rooms.get(roomId).get('issues').set() //TODO set current issue
-        socket.broadcast.to(roomId).emit('GAME:START', '');
+        try {
+            rooms.get(roomId).get('gameState').set('appStatus', 'game');  //TODO тут надо будет засетать здоровенный объект
+            rooms.get(roomId).get('issues').set() //TODO set current issue
+            socket.broadcast.to(roomId).emit('GAME:START', '');
+        } catch (err) {
+            console.log(err);
+        }
     })
 
     //*************************************//
     //            Chat                     //
     //*************************************//
     socket.on('ROOM:NEW_MESSAGE', ({ roomId, userName, text }) => {
-        const obj = {
-            userName,
-            text,
-        };
-        rooms.get(roomId).get('messages').push(obj);
-        socket.broadcast.to(roomId).emit('ROOM:NEW_MESSAGE', obj);
+        try {
+            const obj = {
+                userName,
+                text,
+            };
+            rooms.get(roomId).get('messages').push(obj);
+            socket.broadcast.to(roomId).emit('ROOM:NEW_MESSAGE', obj);
+        } catch (err) {
+            console.log(err);
+        }
     })
     //*************************************//
     //            Game                     //
     //*************************************//
     socket.on('CARD:SELECTED', ({ roomId, userName, scorePoint }) => {
-        rooms.get(roomId).get('issues').set();  //TODO set {userName, scorePoint} for current issue
+        try {
+            rooms.get(roomId).get('issues').set();  //TODO set {userName, scorePoint} for current issue
+        } catch (err) {
+            console.log(err);
+        }
     })
 
     function finishIssue(roomId, curIssue) {
@@ -113,68 +148,95 @@ io.on('connection', (socket) => {
     }
 
     socket.on('ISSUE:NEXT', ({ roomId }) => {
-        rooms.get(roomId).get('issues').set();  //TODO find 'current' issue and set status 'finished'
-        rooms.get(roomId).get('issues').set();  //TODO find one issue with status 'future'  and set status 'current'
-        const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
-        socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
-        // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
-        //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
-        // }
-        const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
-        rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
-        setTimeout(finishIssue, roundTime, roomId, curIssue)
-
+        try {
+            rooms.get(roomId).get('issues').set();  //TODO find 'current' issue and set status 'finished'
+            rooms.get(roomId).get('issues').set();  //TODO find one issue with status 'future'  and set status 'current'
+            const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
+            socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
+            // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
+            //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
+            // }
+            const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
+            rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
+            setTimeout(finishIssue, roundTime, roomId, curIssue)
+        } catch (err) {
+            console.log(err);
+        }
     })
 
     socket.on('ISSUE:RESTART', ({ roomId }) => {
-        const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
-        rooms.get(roomId).get('issues').set();  //TODO find  issue with status 'future'  and clear votes
-        socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
-        // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
-        //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
-        // }
-        const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
-        rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
-        setTimeout(finishIssue, roundTime, roomId, curIssue)
+        try {
+            const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
+            rooms.get(roomId).get('issues').set();  //TODO find  issue with status 'future'  and clear votes
+            socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
+            // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
+            //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
+            // }
+            const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
+            rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
+            setTimeout(finishIssue, roundTime, roomId, curIssue)
+        } catch (err) {
+            console.log(err);
+        }
     })
 
     socket.on('GAME:STOP', ({ roomId }) => {
-        rooms.get(roomId).get('settings').set(); //TODO set game status 'finished'
-        socket.broadcast.to(roomId).emit('GAME:STOP', '')
+        try {
+            rooms.get(roomId).get('settings').set(); //TODO set game status 'finished'
+            socket.broadcast.to(roomId).emit('GAME:STOP', '')
+        } catch (err) {
+            console.log(err);
+        }
     })
     //*************************************//
     //            Votes                    //
     //*************************************//
     socket.on('VOTES:START', ({ roomId, userName, kickUserName }) => {
-        rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
-        socket.broadcast.to(roomId).emit('VOTES:START', {userName, kickUserName})
+        try {
+            rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
+            socket.broadcast.to(roomId).emit('VOTES:START', {userName, kickUserName})
+        } catch (err) {
+            console.log(err);
+        }
     })
     socket.on('VOTES:APPROVE', ({ roomId, userName, kickUserName }) => {
-        const usersCount = [...rooms.get(roomId).get('users')].length+1;
-        rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
-        if(rooms.get(roomId).get('VOTES').get() > usersCount/2) { //TODO get approve count
-            socket.broadcast.to(roomId).emit('GAME:KICK', kickUserName)
+        try {
+            const usersCount = [...rooms.get(roomId).get('users')].length + 1;
+            rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
+            if (rooms.get(roomId).get('VOTES').get() > usersCount / 2) { //TODO get approve count
+                socket.broadcast.to(roomId).emit('GAME:KICK', kickUserName)
+            }
+        } catch (err) {
+            console.log(err);
         }
     })
 
     socket.on('VOTES:REJECT', ({ roomId, userName, kickUserName }) => {
-        const usersCount = [...rooms.get(roomId).get('users')].length+1;
-        rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'reject +1'
-        if(rooms.get(roomId).get('VOTES').get() > usersCount/2) { //TODO get reject count
-            rooms.get(roomId).get('VOTES').set({}) //TODO clear votes
+        try {
+            const usersCount = [...rooms.get(roomId).get('users')].length + 1;
+            rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'reject +1'
+            if (rooms.get(roomId).get('VOTES').get() > usersCount / 2) { //TODO get reject count
+                rooms.get(roomId).get('VOTES').set({}) //TODO clear votes
+            }
+        } catch (err) {
+            console.log(err);
         }
     })
     //*************************************//
     //            Disconnect               //
     //*************************************//
     socket.on('disconnect', () => {
-        console.log(`user ${socket.id} disconnected` )
-        rooms.forEach((value, roomId) => {
-            if (value.get('users').delete(socket.id)) {
-                const users = [...value.get('users').values()];
-                socket.broadcast.to(roomId).emit('ROOM:SET_USERS', users);
-            }
-        });
+        try {
+            console.log(`user ${socket.id} disconnected`)
+            rooms.forEach((value, roomId) => {
+                if (value.get('users').delete(socket.id)) {
+                    const users = [...value.get('users').values()];
+                    socket.broadcast.to(roomId).emit('ROOM:SET_USERS', users);
+                }
+            });
+        } catch (err) {
+            console.log(err);
+        }
     });
 
     console.log('user connected', socket.id);
