@@ -3,10 +3,15 @@ const app = express();
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
-const io = new Server(server);
+const io = new Server(server,  {
+    cors:{
+        origin: '*',
+    },
+});
 const redis = require("redis");
 const config = require('./config');
 const uuid4 = require('uuid4');
+const cors = require('cors');
 //const client = redis.createClient(config.redisConf);
 
 // client.on("error", function(error) {
@@ -18,6 +23,9 @@ const uuid4 = require('uuid4');
 const path = require('path');
 app.use('images', express.static(path.join(__dirname, 'images')))
 app.use('/api', require('./routes/upload.route'))
+app.use(cors({
+    origin: '*'
+}));
 
 
 app.use(express.json())
@@ -81,7 +89,7 @@ app.post('/rooms', (req, res) => {
 app.post('/start', (req, res) => {
     try{
     const { gameState } = req.body;
-   //set gameState to rooms
+   //TODO set gameState to rooms
     // rooms.get(roomId).set & etc.
     res.send('ok');
     }
