@@ -17,7 +17,13 @@ const cors = require('cors');
 // client.on("error", function(error) {
 //     console.error(error);
 // });
-
+const getGame = (room) => {
+    if (!room) return { gameError: new Error("Enter room ID") };
+    const currentGame = games.find((game) => game.room === room);
+    if (currentGame === undefined)
+        return { gameError: new Error("Game not found") };
+    return { currentGame };
+};
 
 //file upload
 const path = require('path');
@@ -61,7 +67,7 @@ app.post('/rooms', (req, res) => {
     const { roomId, userName } = req.body;
 
     if (!rooms.has(roomId)) {
-        newRoomId = uuid4();
+        //newRoomId = uuid4();
         rooms.set(
             newRoomId,
             new Map([
@@ -109,6 +115,7 @@ io.on('connection', (socket) => {
             rooms.get(roomId).get('users').set(socket.id, { userName, jobPosition, isObserver, image });
             const users = [...rooms.get(roomId).get('users').values()];
             socket.broadcast.to(roomId).emit('ROOM:SET_USERS', users);
+            console.log('Hello world')
         }
         catch (err) {
             console.log(err);
@@ -116,14 +123,37 @@ io.on('connection', (socket) => {
     });
 
     socket.on('GAME:START', ({ roomId }) => {
+        export const addGame = () => {
+            const room = uuidv4();
+            const users = [];
+            const issues = [];
+            const settings = {
+                isFreeConnectionToGameForNewUsers:false,
+            };
+            const title = "";
+            const dealer = {};
+            const gameStatus = "lobby";
+            const voting = {
+                isVote: false,
+                candidat: "",
+                results: [],
+            };
         try {
-            rooms.get(roomId).get('gameState').set('appStatus', 'game');  //TODO тут надо будет засетать здоровенный объект
-            rooms.get(roomId).get('issues').set() //TODO set current issue
+            const { room, game } = addGame();
+            const dealer = {
+                id,
+                firstName,
+                lastName,
+                jobPosition,
+                avatar,
+                role,
+                room,
+            };
             socket.broadcast.to(roomId).emit('GAME:START', '');
         } catch (err) {
             console.log(err);
         }
-    })
+    });
 
     //*************************************//
     //            Chat                     //
@@ -143,6 +173,35 @@ io.on('connection', (socket) => {
     //*************************************//
     //            Game                     //
     //*************************************//
+        const getPokerGame = (room) => {
+            const currentPokerGame = pokers.find((poker) => poker.roomID === room);
+            if (!currentPokerGame) return new Error("Poker game not found");
+            return { currentPokerGame };
+        };
+        const getIssues = (room) => {
+            const { currentGame, gameError } = getGame(room);
+            if (gameError) return gameError;
+            const issues = currentGame.issues.filter((issue) => issue.room === room);
+            return { issues };
+
+        const checkCurrentIssue = (room) => {
+            const {currentPokerGame} = getPokerGame(room);
+            const {issues} = getIssues(room);
+            if(currentPokerGame) {
+                const selectedID = currentPokerGame.round.issueID;
+                const index = issues.findIndex(issue => issue.id === selectedID);
+                if(index < 0 && issues.length) {
+                    currentPokerGame.round.issueID = issues[0].id
+                    const firstIssueID = issues[0].id;
+                    addRound(room,firstIssueID)
+                    return firstIssueID;
+                } else {
+                    addRound(room,selectedID)
+                    return selectedID;
+                }
+            }
+        }
+
     socket.on('CARD:SELECTED', ({ roomId, userName, scorePoint }) => {
         try {
             rooms.get(roomId).get('issues').set();  //TODO set {userName, scorePoint} for current issue
@@ -157,15 +216,14 @@ io.on('connection', (socket) => {
 
     socket.on('ISSUE:NEXT', ({ roomId }) => {
         try {
-            rooms.get(roomId).get('issues').set();  //TODO find 'current' issue and set status 'finished'
-            rooms.get(roomId).get('issues').set();  //TODO find one issue with status 'future'  and set status 'current'
-            const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
-            socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
-            // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
-            //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
-            // }
-            const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
-            rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
+            const { currentGame, gameError } = getGame(roomId);
+            if (gameError) return gameError;
+            const index = currentGame.issues.findIndex((issue) => issue.id === data.id);
+            if (index < 0) return { issueError: new Error(`Issue not found`) };
+            const existIssue = currentGame.issues[index];
+            currentGame.issues[index] = { ...existIssue, ...data };
+            const updIssue = currentGame.issues[index];
+            return { updIssue };
             setTimeout(finishIssue, roundTime, roomId, curIssue)
         } catch (err) {
             console.log(err);
@@ -174,14 +232,14 @@ io.on('connection', (socket) => {
 
     socket.on('ISSUE:RESTART', ({ roomId }) => {
         try {
-            const curIssue = rooms.get(roomId).get('issues') //TODO get issue with status 'current'
-            rooms.get(roomId).get('issues').set();  //TODO find  issue with status 'future'  and clear votes
-            socket.broadcast.to(roomId).emit('ISSUE:NEXT', curIssue)
-            // if(rooms.get(roomId).get('settings') ) { //TODO get time from settings
-            //     socket.broadcast.to(roomId).emit('ISSUE:FINISHED', curIssue) //TODO send it after Date.now + gameState.timer
-            // }
-            const roundTime = rooms.get(roomId).get('settings') //TODO get time from settings
-            rooms.get(roomId).get('gameState').set() //TODO set 'timer' = roundTime + Date.now
+            const { gameError, issueError } = updateIssue(data.roomId, data);
+            if (gameError) return gameError;
+            if (issueError) return issueError;
+            const { issues } = getIssues(data.room);
+            const selectID  = checkCurrentIssue(data.room);
+            console.log(`Update ${data.id} issue in room ${data.room}`)
+            io.in(data.room).emit('RES_ISSUES_GET', issues);
+            io.in(data.room).emit(='RES_SELECT_ISSUE',selectID)
             setTimeout(finishIssue, roundTime, roomId, curIssue)
         } catch (err) {
             console.log(err);
@@ -201,8 +259,13 @@ io.on('connection', (socket) => {
     //*************************************//
     socket.on('VOTES:START', ({ roomId, userName, kickUserName }) => {
         try {
-            rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
-            socket.broadcast.to(roomId).emit('VOTES:START', {userName, kickUserName})
+            const { currentGame, gameError } = getGame(room);
+            if (gameError) return;
+            if (!currentGame.voting.isVote && currentGame.users.length > 2) {
+                currentGame.voting.isVote = true;
+                currentGame.voting.candidat = deleteUserID;
+                currentGame.voting.results.push(true);
+            socket.broadcast.to(roomId).emit('VOTES:START', {userName, kickUserName})}
         } catch (err) {
             console.log(err);
         }
@@ -210,10 +273,26 @@ io.on('connection', (socket) => {
     socket.on('VOTES:APPROVE', ({ roomId, userName, kickUserName }) => {
         try {
             const usersCount = [...rooms.get(roomId).get('users')].length + 1;
-            rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'approve +1'
-            if (rooms.get(roomId).get('VOTES').get() > usersCount / 2) { //TODO get approve count
-                socket.broadcast.to(roomId).emit('GAME:KICK', kickUserName)
+            if (
+                currentGame.voting.results.length === currentGame.users.length - 1 &&
+                confirmDeleting.length > (currentGame.users.length - 1) / 2
+            ) {
+                const { deletedUser } = deleteUser(room, currentGame.voting.candidat);
+                const deletedUserID = deletedUser.id;
+
+                console.log(
+                    `${deletedUserID} user deleted by voting from  the room: ${room}`
+                );
+                io.in(room).emit('RES_RESULT_VOTE', { deletedUserID, isDeleted });
+                io.in(room).emit(
+                    EVENTS.NOTIFICATIONS,
+                    `${deletedUser.firstName} was deleted by voting`
+                );
+                currentGame.voting.isVote = false;
+                currentGame.voting.results = [];
             }
+                socket.broadcast.to(roomId).emit('GAME:KICK', kickUserName)
+
         } catch (err) {
             console.log(err);
         }
@@ -222,9 +301,13 @@ io.on('connection', (socket) => {
     socket.on('VOTES:REJECT', ({ roomId, userName, kickUserName }) => {
         try {
             const usersCount = [...rooms.get(roomId).get('users')].length + 1;
-            rooms.get(roomId).get('VOTES').set(); //TODO set kickUserName and 'reject +1'
-            if (rooms.get(roomId).get('VOTES').get() > usersCount / 2) { //TODO get reject count
-                rooms.get(roomId).get('VOTES').set({}) //TODO clear votes
+            if (
+                currentGame.voting.results.length === currentGame.users.length - 1 &&
+                confirmDeleting.length > (currentGame.users.length - 1) / 2
+            ) {
+                const { deletedUser } = deleteUser(room, currentGame.voting.candidat);
+                const deletedUserID = deletedUser.id;
+
             }
         } catch (err) {
             console.log(err);
